@@ -24,7 +24,7 @@ void state_res(Conn *conn) {
 
 void add_conn_fd2conn(Conn ***fd2conn, long long *connected_clients,
                       long long *max_clients, int connfd, Conn *conn) {
-    if (conn >= *max_clients) {
+    if (connfd >= *max_clients) {
         *max_clients *= 2;
         *fd2conn = realloc(*fd2conn, sizeof(Conn *) * (*max_clients));
         if (!*fd2conn) die("add_conn_fd2conn() realloc error\n");

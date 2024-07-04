@@ -5,10 +5,12 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
 
+long long sent = 0;
 
 static void msg(const char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -48,7 +50,7 @@ static int32_t write_all(int fd, const char *buf, size_t n) {
 
 const size_t k_max_msg = 4096;
 
-// the `query` function was simply splited into `send_req` and `read_res`.
+// the `query` function was simply split into `send_req` and `read_res`.
 static int32_t send_req(int fd, const char *text) {
     uint32_t len = (uint32_t)strlen(text);
     if (len > k_max_msg) {
@@ -91,11 +93,13 @@ static int32_t read_res(int fd) {
 
     // do something
     rbuf[4 + len] = '\0';
-    printf("server says: %s\n", &rbuf[4]);
+    printf("server says: %s \t%lld\n", &rbuf[4], sent);
+    sent++;
     return 0;
 }
 
 int main() {
+    srand(time(NULL));
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         die("socket()");
@@ -110,18 +114,37 @@ int main() {
         die("connect");
     }
 
-    // multiple pipelined requests
     const char *query_list[3] = {"hello1", "hello2", "hello3"};
-    for (size_t i = 0; i < 3; ++i) {
-        int32_t err = send_req(fd, query_list[i]);
+    time_t start_time = time(NULL);
+    int requests_sent = 0;
+    int responses_received = 0;
+
+    for (size_t i = 0; i < 50000; ++i) {
+        int random_index = rand() % 3; // Generate a random index between 0 and 2
+        int32_t err = send_req(fd, query_list[random_index]);
         if (err) {
             goto L_DONE;
         }
+        requests_sent++;
+        if (time(NULL) - start_time >= 1) {
+            printf("Requests sent in the last second: %d\n", requests_sent);
+            requests_sent = 0;
+            start_time = time(NULL);
+        }
     }
-    for (size_t i = 0; i < 3; ++i) {
+
+    start_time = time(NULL); // Reset start time for responses
+
+    for (size_t i = 0; i < 50000; ++i) {
         int32_t err = read_res(fd);
         if (err) {
             goto L_DONE;
+        }
+        responses_received++;
+        if (time(NULL) - start_time >= 1) {
+            printf("Responses received in the last second: %d\n", responses_received);
+            responses_received = 0;
+            start_time = time(NULL);
         }
     }
 

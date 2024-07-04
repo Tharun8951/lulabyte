@@ -82,15 +82,11 @@ int main() {
                 poll_args[nfds].fd = fd2conn[i]->fd;
                 poll_args[nfds].events =
                     (fd2conn[i]->state == STATE_REQ) ? POLLIN : POLLOUT;
-                printf("poll_args set events\n");
                 poll_args[nfds].events |= POLLERR;
-                printf("poll_args set events 1\n");
                 nfds++;
-                printf("nfds++\n");
             } 
         }
 
-        printf("setting poll_sockets\n");
         int poll_sockets = poll(poll_args, nfds, 1000);
         if (poll_sockets < 0) die("poll");
 
