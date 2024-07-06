@@ -72,7 +72,7 @@ int main() {
     if (!poll_args) die("malloc");
 
     while (1) {
-        printf("inside event_loop while loop\n");
+        // printf("inside event_loop while loop\n");
         poll_args[0].fd = server_fd;
         poll_args[0].events = POLLIN;
         int nfds = 1;
@@ -87,7 +87,7 @@ int main() {
             } 
         }
 
-        int poll_sockets = poll(poll_args, nfds, 1000);
+        int poll_sockets = poll(poll_args, (nfds_t)nfds, 1000);
         if (poll_sockets < 0) die("poll");
 
         if (poll_args[0].revents) {
@@ -101,6 +101,7 @@ int main() {
                 connection_io(conn);
                 if (conn->state == STATE_END) {
                     conn_remove(&fd2conn, conn->fd, &connected_clients);
+                    printf("\n\n\t\t\tDISCONNECTED CLIENT\t\t\t\n\n");
                     close(conn->fd);
                 }
             }

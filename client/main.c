@@ -50,7 +50,6 @@ static int32_t write_all(int fd, const char *buf, size_t n) {
 
 const size_t k_max_msg = 4096;
 
-// the `query` function was simply split into `send_req` and `read_res`.
 static int32_t send_req(int fd, const char *text) {
     uint32_t len = (uint32_t)strlen(text);
     if (len > k_max_msg) {
@@ -100,55 +99,54 @@ static int32_t read_res(int fd) {
 
 int main() {
     srand(time(NULL));
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        die("socket()");
-    }
-
-    struct sockaddr_in addr = {};
-    addr.sin_family = AF_INET;
-    addr.sin_port = ntohs(6379);
-    addr.sin_addr.s_addr = ntohl(INADDR_LOOPBACK);  // 127.0.0.1
-    int rv = connect(fd, (const struct sockaddr *)&addr, sizeof(addr));
-    if (rv) {
-        die("connect");
-    }
-
-    const char *query_list[3] = {"hello1", "hello2", "hello3"};
+    const char *query_list[3] = {"hello my name is Tharun", "God is dead, God remains dead and we have killed him", "One must imagine sisyphus happy"};
     time_t start_time = time(NULL);
     int requests_sent = 0;
     int responses_received = 0;
 
-    for (size_t i = 0; i < 50000; ++i) {
+    for (size_t i = 0; i < 2000; ++i) {
+        int fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0) {
+            die("socket()");
+        }
+
+        struct sockaddr_in addr = {};
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(6379);
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  // 127.0.0.1
+        int rv = connect(fd, (const struct sockaddr *)&addr, sizeof(addr));
+        if (rv) {
+            die("connect");
+        }
+
         int random_index = rand() % 3; // Generate a random index between 0 and 2
         int32_t err = send_req(fd, query_list[random_index]);
         if (err) {
+            close(fd);
             goto L_DONE;
         }
         requests_sent++;
         if (time(NULL) - start_time >= 1) {
-            printf("Requests sent in the last second: %d\n", requests_sent);
+            printf("\n\n\t\tRequests sent in the last second: %d\n\n\t\t", requests_sent);
             requests_sent = 0;
             start_time = time(NULL);
         }
-    }
 
-    start_time = time(NULL); // Reset start time for responses
-
-    for (size_t i = 0; i < 50000; ++i) {
-        int32_t err = read_res(fd);
+        err = read_res(fd);
         if (err) {
+            close(fd);
             goto L_DONE;
         }
         responses_received++;
         if (time(NULL) - start_time >= 1) {
-            printf("Responses received in the last second: %d\n", responses_received);
+            printf("\n\n\t\tResponses received in the last second: %d\n\n\t\t", responses_received);
             responses_received = 0;
             start_time = time(NULL);
         }
+
+        close(fd);
     }
 
 L_DONE:
-    close(fd);
     return 0;
 }

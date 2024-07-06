@@ -35,7 +35,7 @@ void add_conn_fd2conn(Conn ***fd2conn, long long *connected_clients,
 
 void accept_new_conn(Conn ***fd2conn, int server_fd,
                      long long *connected_clients, long long *max_clients) {
-    printf("accepting new client\n");
+    printf("\n\n\t\t\tNEW CLIENT CONNECTED\t\t\t\n\n");
     struct sockaddr_in client_addr = {};
     socklen_t sockelen = sizeof(client_addr);
     int connfd = accept(server_fd, (struct sockaddr *)&client_addr, &sockelen);
