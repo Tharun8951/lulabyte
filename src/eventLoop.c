@@ -33,30 +33,40 @@ void add_conn_fd2conn(Conn ***fd2conn, long long *connected_clients,
     (*connected_clients)++;
 }
 
-void accept_new_conn(Conn ***fd2conn, int server_fd,
-                     long long *connected_clients, long long *max_clients) {
-    printf("\n\n\t\t\tNEW CLIENT CONNECTED\t\t\t\n\n");
-    struct sockaddr_in client_addr = {};
-    socklen_t sockelen = sizeof(client_addr);
-    int connfd = accept(server_fd, (struct sockaddr *)&client_addr, &sockelen);
-    if (connfd < 0) die("accept_new_conn() accept() err\n");
+bool accept_new_conn(int server_fd, struct epoll_event event, int epoll_fd, Conn ***fd2conn, long long *connected_clients,
+                      long long *max_clients){
+    struct sockaddr_in in_addr;
+                    socklen_t in_len = sizeof(in_addr);
+                    int infd = accept(server_fd, (struct sockaddr *)&in_addr,
+                &in_len); if (infd == -1) { if ((errno == EAGAIN) || (errno ==
+                EWOULDBLOCK)) { return false; } else { perror("accept"); return false;
+                        }
+                    }
 
-    set_fd_nb(connfd);
-    Conn *conn = (Conn *)malloc(sizeof(Conn));
-    if (!conn) {
-        close(connfd);
-        die("Conn *conn memory alocation error\n");
-        return;
-    }
+                    set_fd_nb(infd);
 
-    conn->fd = connfd;
-    conn->state = STATE_REQ;
-    conn->rbuf_size = 0;
-    conn->wbuf_sent = 0;
-    conn->wbuf_size = 0;
+                    event.data.fd = infd;
+                    event.events = EPOLLIN | EPOLLET;
+                    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, infd, &event) == -1)
+                { perror("epoll_ctl"); close(infd); return false;
+                    }
 
-    add_conn_fd2conn(fd2conn, connected_clients, max_clients, connfd, conn);
-    printf("accept_new_client() ok\n");
+                    Conn *conn = (Conn *)malloc(sizeof(Conn));
+                    if (!conn) {
+                        perror("malloc");
+                        close(infd);
+                        return false;
+                    }
+
+                    conn->fd = infd;
+                    conn->state = STATE_REQ;
+                    conn->rbuf_size = 0;
+                    conn->wbuf_sent = 0;
+                    conn->wbuf_size = 0;
+
+                    add_conn_fd2conn(fd2conn, connected_clients, max_clients,
+                infd, conn);
+                return true;
 }
 
 Conn *conn_get(Conn **fd2conn, int fd) { return fd2conn[fd]; }
@@ -75,12 +85,8 @@ bool try_one_req(Conn *conn) {
         return false;
     }
 
-    {
-        printf("client says: %.*s\n", len, &conn->rbuf[4]);
-    }
+    { printf("client says: %.*s\n", len, &conn->rbuf[4]); }
 
-    // memcpy(&conn->wbuf[0], &len, 4);
-    // memcpy(&conn->wbuf[4], &conn->rbuf[4], len);
     memcpy(conn->wbuf, conn->rbuf, 4 + len);
     conn->wbuf_size = 4 + len;
 

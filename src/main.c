@@ -67,37 +67,43 @@ int main() {
     Conn **fd2conn = (Conn **)calloc(max_clients, sizeof(Conn *));
     if (!fd2conn) die("calloc");
 
-    struct pollfd *poll_args =
-        (struct pollfd *)malloc(max_clients * sizeof(struct pollfd));
-    if (!poll_args) die("malloc");
+    int epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1) die("epoll_create1");
+
+    struct epoll_event event;
+    event.data.fd = server_fd;
+    event.events = EPOLLIN | EPOLLET;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &event) == -1) {
+        die("epoll_ctl");
+    }
+
+    struct epoll_event *events =
+        (struct epoll_event *)calloc(MAX_EVENTS, sizeof(struct epoll_event));
+    if (!events) die("calloc");
 
     while (1) {
-        // printf("inside event_loop while loop\n");
-        poll_args[0].fd = server_fd;
-        poll_args[0].events = POLLIN;
-        int nfds = 1;
-
-        for (int i = 0; i < max_clients; i++) {
-            if (fd2conn[i] != NULL) {
-                poll_args[nfds].fd = fd2conn[i]->fd;
-                poll_args[nfds].events =
-                    (fd2conn[i]->state == STATE_REQ) ? POLLIN : POLLOUT;
-                poll_args[nfds].events |= POLLERR;
-                nfds++;
-            } 
+        printf("inside epoll eventloop\n");
+        int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+        if (n == -1) {
+            if (errno == EINTR) continue;
+            die("epoll_wait");
         }
 
-        int poll_sockets = poll(poll_args, (nfds_t)nfds, 1000);
-        if (poll_sockets < 0) die("poll");
-
-        if (poll_args[0].revents) {
-            accept_new_conn(&fd2conn, server_fd, &connected_clients,
-                            &max_clients);
-        }
-
-        for (int i = 1; i < nfds; i++) {
-            if (poll_args[i].revents) {
-                Conn *conn = conn_get(fd2conn, poll_args[i].fd);
+        for (int i = 0; i < n; i++) {
+            if ((events[i].events & EPOLLERR) ||
+                (events[i].events & EPOLLHUP) ||
+                (!(events[i].events & EPOLLIN))) {
+                fprintf(stderr, "epoll error\n");
+                close(events[i].data.fd);
+                continue;
+            } else if (server_fd == events[i].data.fd) {
+                while (accept_new_conn(server_fd, event, epoll_fd, &fd2conn,
+                                       &connected_clients, &max_clients)) {
+                }
+                continue;
+            } else {
+                Conn *conn = conn_get(fd2conn, events[i].data.fd);
+                if (!conn) continue;
                 connection_io(conn);
                 if (conn->state == STATE_END) {
                     conn_remove(&fd2conn, conn->fd, &connected_clients);
@@ -107,8 +113,7 @@ int main() {
             }
         }
     }
-
-    free(poll_args);
+    free(events);
     free(fd2conn);
     close(server_fd);  // Closing the server socket outside the loop
     return 0;

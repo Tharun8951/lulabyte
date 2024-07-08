@@ -10,9 +10,11 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <stdbool.h>
+
 #include <poll.h>
+#include <sys/epoll.h>
 
-
+#define MAX_EVENTS 1024
 #define max_message_length 4096
 #define STATE_REQ 0
 #define STATE_RES 1
@@ -42,7 +44,9 @@ void set_fd_nb(int);
 void die(const char *msg);
 bool try_one_req(Conn *conn);
 Conn *conn_get(Conn **fd2conn, int fd);
-void accept_new_conn(Conn ***fd2conn, int server_fd, long long *connected_clients, long long *max_clients);
+bool accept_new_conn(int server_fd, struct epoll_event event, int epoll_fd, Conn ***fd2conn, long long *connected_clients,
+                      long long *max_clients);
+// void accept_new_conn(Conn ***fd2conn, int server_fd, long long *connected_clients, long long *max_clients);
 void add_conn_fd2conn(Conn ***fd2conn, long long *connected_clients,long long *max_clients, int connfd, Conn *conn);
 void state_res(Conn *conn);
 void state_req(Conn *conn);
